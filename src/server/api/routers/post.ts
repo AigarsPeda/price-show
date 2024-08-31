@@ -1,6 +1,4 @@
 import { z } from "zod";
-import * as cheerio from "cheerio";
-
 import {
   createTRPCRouter,
   protectedProcedure,

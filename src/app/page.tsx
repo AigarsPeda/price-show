@@ -1,9 +1,8 @@
 import Link from "next/link";
+import puppeteer from "puppeteer";
 import { LatestPost } from "~/app/_components/post";
 import { getServerAuthSession } from "~/server/auth";
 import { api, HydrateClient } from "~/trpc/server";
-import * as cheerio from "cheerio";
-import puppeteer from "puppeteer";
 
 const getCategories = async () => {
   // Launch the Puppeteer browser
