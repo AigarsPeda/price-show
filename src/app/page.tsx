@@ -3,55 +3,62 @@ import puppeteer from "puppeteer";
 import { LatestPost } from "~/app/_components/post";
 import { getServerAuthSession } from "~/server/auth";
 import { api, HydrateClient } from "~/trpc/server";
+import getCategories from "src/app/rimi/getCategories";
 
-const getCategories = async () => {
+const searchAndExtractItems = async (searchTerm: string) => {
   // Launch the Puppeteer browser
   const browser = await puppeteer.launch({ headless: true }); // Set headless to false for debugging
   const page = await browser.newPage();
 
-  // Navigate to the target page
-  await page.goto("https://www.rimi.lv/e-veikals", {
-    waitUntil: "networkidle2", // Waits for all network requests to finish
-  });
+  // Navigate to the target page with the search term
+  await page.goto(
+    `https://www.rimi.lv/e-veikals/lv/meklesana?query=${searchTerm}`,
+    {
+      waitUntil: "networkidle2", // Waits for all network requests to finish
+    },
+  );
 
-  // Click on the "Produkti" button
-  await page.evaluate(() => {
-    const categoryElements = document.querySelectorAll(".nav-list__item");
-    categoryElements.forEach((categoryElement) => {
-      const categoryLink = categoryElement.querySelector("a");
-      if (
-        categoryLink?.textContent &&
-        categoryLink.textContent.includes("Produkti")
-      ) {
-        categoryLink.click();
-      }
-    });
-  });
-
-  // Wait for the menu to appear
-  await page.waitForSelector("#desktop_category_menu", { visible: true });
-
-  // Extract all categories from the newly opened menu
-  const categories = await page.evaluate(() => {
-    const categoryElements = document.querySelectorAll(
-      "#desktop_category_menu .category-list-item",
+  // Extract product details from the page
+  const products = await page.evaluate(() => {
+    // Select all <li> elements with class 'product-grid__item' inside <ul> with class 'product-grid'
+    const productElements = document.querySelectorAll(
+      "ul.product-grid li.product-grid__item",
     );
+    const productList = [];
 
-    const categories = Array.from(categoryElements).map((categoryElement) => {
-      const button = categoryElement.querySelector("button");
-      const name = button?.querySelector(".name")?.textContent;
-      const href = button?.getAttribute("href");
+    // Iterate over each product element and extract relevant data
+    productElements.forEach((product) => {
+      const productCode = product
+        .querySelector(".js-product-container")
+        .getAttribute("data-product-code");
+      const productName = product.querySelector(".card__name").innerText;
+      const productPrice =
+        product.querySelector(".price-tag.card__price span").innerText +
+        product.querySelector(".price-tag.card__price sup").innerText;
+      const productPricePerUnit =
+        product.querySelector(".card__price-per").innerText;
+      const productImage = product
+        .querySelector(".card__image-wrapper img")
+        .getAttribute("src");
+      const productUrl = product
+        .querySelector(".card__url")
+        .getAttribute("href");
 
-      return {
-        name: name?.trim(),
-        link: href,
-      };
+      // Push product details to the list
+      productList.push({
+        code: productCode,
+        name: productName,
+        price: parseFloat(productPrice.replace(",", ".")), // Convert price to float
+        pricePerUnit: productPricePerUnit,
+        image: productImage,
+        url: `https://www.rimi.lv${productUrl}`,
+      });
     });
 
-    return categories;
+    return productList;
   });
 
-  console.log("Categories:", categories);
+  console.log(products);
 
   // Close the browser
   await browser.close();
@@ -63,24 +70,9 @@ export default async function Home() {
 
   void api.post.getLatest.prefetch();
 
-  await getCategories();
-  // getData();
+  await searchAndExtractItems("piens");
 
-  // const response = await fetch(`https://www.rimi.lv/e-veikals`);
-  // const htmlString = await response.text();
-  // const $ = cheerio.load(htmlString);
-
-  // const htmlString = await getData();
-
-  // console.log("htmlString", htmlString);
-
-  // console.log("htmlString", htmlString);
-  // console.log("htmlString", $("title").text());
-
-  // search for class category-menu
-  // const categoryMenu = $(".category-menu");
-
-  // console.log("categoryMenu", categoryMenu);
+  // await getCategories();
 
   return (
     <HydrateClient>
